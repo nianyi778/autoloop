@@ -41,12 +41,12 @@ class AutoLoopApp(App):
             input_widget = self.query_one("#task-input", Input)
             raw_input = input_widget.value.strip()
             if raw_input:
-                await self._run_loop(raw_input)
+                self.run_worker(self._run_loop(raw_input), exclusive=True)
 
     async def on_input_submitted(self, event: Input.Submitted) -> None:
         raw_input = event.value.strip()
         if raw_input:
-            await self._run_loop(raw_input)
+            self.run_worker(self._run_loop(raw_input), exclusive=True)
 
     async def _run_loop(self, raw_input: str) -> None:
         output_area = self.query_one("#output-area", VerticalScroll)

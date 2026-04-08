@@ -20,7 +20,9 @@ class RoundPanel(Static):
         self.update("".join(self._tokens))
 
     def set_progress(self, message: str) -> None:
-        self.update(f"[dim]{message}[/dim]")
+        if not self._tokens:
+            self.update(f"[dim]{message}[/dim]")
+        # if tokens are already streaming, don't overwrite them
 
 
 class EvalPanel(Static):
