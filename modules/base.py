@@ -3,7 +3,7 @@ from __future__ import annotations
 import re
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, ClassVar
+from typing import Any, ClassVar, Literal
 
 from langgraph.config import get_stream_writer
 
@@ -31,7 +31,7 @@ class ModuleResult:
 class StreamEvent:
     module_name: str
     round_number: int
-    event_type: str    # "token" | "progress" | "error" | "done"
+    event_type: Literal["token", "progress", "error", "done"]
     payload: str
 
 
@@ -52,7 +52,10 @@ class BaseModule(ABC):
     async def execute(self, context: RoundContext) -> ModuleResult: ...
 
     def _emit(self, event_type: str, payload: str, round_number: int) -> None:
-        writer = get_stream_writer()
+        try:
+            writer = get_stream_writer()
+        except RuntimeError:
+            return  # outside LangGraph context — silently drop
         writer(StreamEvent(
             module_name=self.name,
             round_number=round_number,
@@ -60,6 +63,23 @@ class BaseModule(ABC):
             payload=payload,
         ))
 
+    def __init_subclass__(cls, **kwargs: object) -> None:
+        super().__init_subclass__(**kwargs)
+        # Only validate concrete subclasses (those that define all required ClassVars)
+        required = ("name", "description", "match_pattern")
+        missing = [attr for attr in required if not isinstance(getattr(cls, attr, None), str)]
+        if missing:
+            raise TypeError(
+                f"{cls.__name__} must define ClassVar[str] for: {missing}"
+            )
+
     @classmethod
     def compiled_pattern(cls) -> re.Pattern[str]:
-        return re.compile(cls.match_pattern, re.IGNORECASE)
+        attr = "_compiled_pattern_cache"
+        if not hasattr(cls, attr):
+            # Use object.__setattr__ to avoid frozen dataclass issues at class level
+            try:
+                setattr(cls, attr, re.compile(cls.match_pattern, re.IGNORECASE))
+            except AttributeError:
+                pass  # class has __slots__ or other restriction; fall through to recompile
+        return getattr(cls, attr, re.compile(cls.match_pattern, re.IGNORECASE))

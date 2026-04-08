@@ -49,3 +49,33 @@ async def test_router_case_insensitive():
     router = MatchRouter()
     result = await router.route(make_spec("ROUTER_TEST_TYPE"))
     assert result.name == "router_test_module"
+
+
+@register
+class RouterAmbiguousA(BaseModule):
+    name = "router_ambiguous_a"
+    description = "Ambiguous A"
+    match_pattern = r"ambiguous_type"
+    evaluation_rubric = None
+
+    async def execute(self, context: RoundContext) -> ModuleResult:
+        return ModuleResult(output="a")
+
+
+@register
+class RouterAmbiguousB(BaseModule):
+    name = "router_ambiguous_b"
+    description = "Ambiguous B"
+    match_pattern = r"ambiguous_type"
+    evaluation_rubric = None
+
+    async def execute(self, context: RoundContext) -> ModuleResult:
+        return ModuleResult(output="b")
+
+
+@pytest.mark.asyncio
+async def test_router_ambiguous_raises():
+    router = MatchRouter()
+    with pytest.raises(AmbiguousModuleMatch) as exc_info:
+        await router.route(make_spec("ambiguous_type"))
+    assert "router_ambiguous_a" in exc_info.value.candidates or "router_ambiguous_b" in exc_info.value.candidates
