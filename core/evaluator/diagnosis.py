@@ -1,14 +1,7 @@
 from __future__ import annotations
+import typing
 from dataclasses import dataclass
 from typing import Literal
-
-VALID_CATEGORIES = {
-    "requirement_mismatch",
-    "quality_insufficient",
-    "execution_failed",
-    "scope_exceeded",
-    "info_insufficient",
-}
 
 DiagnosisCategory = Literal[
     "requirement_mismatch",
@@ -18,8 +11,10 @@ DiagnosisCategory = Literal[
     "info_insufficient",
 ]
 
+VALID_CATEGORIES: frozenset[str] = frozenset(typing.get_args(DiagnosisCategory))
 
-@dataclass
+
+@dataclass(frozen=True)
 class Diagnosis:
     category: DiagnosisCategory
     details: str

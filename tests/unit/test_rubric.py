@@ -20,3 +20,9 @@ def test_evaluation_rubric_custom():
     rubric = EvaluationRubric(checklist=[item], llm_judge_weight=0.5)
     assert len(rubric.checklist) == 1
     assert rubric.llm_judge_weight == 0.5
+
+
+def test_evaluation_rubric_invalid_weight():
+    import pytest
+    with pytest.raises(ValueError, match="llm_judge_weight"):
+        EvaluationRubric(llm_judge_weight=1.5)
