@@ -11,7 +11,7 @@ dependencies = [
 [project.entry-points."autoloop.modules"]
 
 [project.scripts]
-autoloop = "autoloop.tui.app:main"
+autoloop = "tui.app:main"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

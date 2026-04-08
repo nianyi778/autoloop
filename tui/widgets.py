@@ -1,8 +1,5 @@
 from __future__ import annotations
 from textual.widgets import Static
-from textual.app import ComposeResult
-from textual.containers import VerticalScroll
-from rich.text import Text
 
 
 class RoundPanel(Static):

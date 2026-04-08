@@ -1,9 +1,7 @@
 from __future__ import annotations
 
-import asyncio
 import os
 import sys
-from typing import Any
 
 from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll, Vertical
@@ -84,22 +82,20 @@ class AutoLoopApp(App):
             stream_mode=["updates", "custom"],
         ):
             if isinstance(chunk, StreamEvent):
+                if current_panel is None:
+                    current_panel = RoundPanel(chunk.round_number, chunk.module_name)
+                    await output_area.mount(current_panel)
                 if chunk.event_type == "progress":
-                    if current_panel is None:
-                        current_panel = RoundPanel(chunk.round_number, "content_writer")
-                        await output_area.mount(current_panel)
                     current_panel.set_progress(chunk.payload)
                 elif chunk.event_type == "token":
-                    if current_panel is None:
-                        current_panel = RoundPanel(chunk.round_number, "content_writer")
-                        await output_area.mount(current_panel)
                     current_panel.append_token(chunk.payload)
-                elif chunk.event_type == "done":
-                    eval_panel = EvalPanel()
-                    await output_area.mount(eval_panel)
+                # "done" event no longer creates panel (moved to dict branch)
             elif isinstance(chunk, dict):
                 # state update
-                if "current_score" in chunk and eval_panel:
+                if "current_score" in chunk:
+                    if eval_panel is None:
+                        eval_panel = EvalPanel()
+                        await output_area.mount(eval_panel)
                     score = chunk.get("current_score")
                     diagnosis = chunk.get("current_diagnosis")
                     checklist = chunk.get("checklist_passed", False)
@@ -107,7 +103,8 @@ class AutoLoopApp(App):
                     eval_panel.set_result(checklist, score, details)
                 if "final_output" in chunk and chunk["final_output"]:
                     status.update("[bold green]✓ 任务完成[/bold green]")
-                    current_panel = None  # reset for next task
+                    current_panel = None
+                    eval_panel = None  # reset both for next task
                 if "failure_reason" in chunk and chunk["failure_reason"]:
                     status.update(f"[yellow]⚠ {chunk['failure_reason']}[/yellow]")
 
