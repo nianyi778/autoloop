@@ -1,0 +1,21 @@
+[project]
+name = "autoloop"
+version = "0.1.0"
+requires-python = ">=3.11"
+dependencies = [
+    "langgraph>=0.2",
+    "anthropic>=0.40",
+    "textual>=0.60",
+]
+
+[project.entry-points."autoloop.modules"]
+
+[project.scripts]
+autoloop = "autoloop.tui.app:main"
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.24"]

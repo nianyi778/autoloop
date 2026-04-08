@@ -1,0 +1,12 @@
+[loop]
+max_rounds = 5
+max_inner_rounds = 3
+pass_threshold = 0.8
+history_summary_max_tokens = 200
+
+[llm]
+model = "claude-sonnet-4-6"
+temperature = 0.7
+
+[evaluator]
+checklist_parallel = true
