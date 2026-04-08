@@ -54,25 +54,24 @@ def _make_mock_client(parse_response_text: str, judge_response_text: str):
     mock_judge_msg = MagicMock()
     mock_judge_msg.content = [MagicMock(text=judge_response_text)]
 
-    call_count = [0]
-
     async def mock_create(**kwargs):
         # First call is parse_node (解析为结构化任务单), subsequent calls are LLM Judge
-        call_count[0] += 1
         messages = kwargs.get("messages", [])
         content = messages[0].get("content", "") if messages else ""
         if "解析为结构化任务单" in content:
             return mock_parse_msg
         return mock_judge_msg
 
-    mock_stream_ctx = AsyncMock()
-    mock_stream_ctx.__aenter__ = AsyncMock(return_value=mock_stream_ctx)
-    mock_stream_ctx.__aexit__ = AsyncMock(return_value=None)
-    mock_stream_ctx.text_stream = _async_gen(["这是", "测试", "内容"])
+    def make_stream_ctx():
+        ctx = AsyncMock()
+        ctx.__aenter__ = AsyncMock(return_value=ctx)
+        ctx.__aexit__ = AsyncMock(return_value=None)
+        ctx.text_stream = _async_gen(["这是", "测试", "内容"])
+        return ctx
 
     mock_client = AsyncMock()
     mock_client.messages.create = AsyncMock(side_effect=mock_create)
-    mock_client.messages.stream = MagicMock(return_value=mock_stream_ctx)
+    mock_client.messages.stream = MagicMock(side_effect=lambda **kw: make_stream_ctx())
 
     return mock_client
 
@@ -97,6 +96,7 @@ async def test_graph_reaches_final_output_on_high_score():
 
     assert result["final_output"] is not None
     assert result["failure_reason"] is None
+    assert result["task_spec"].task_type == "content_writing"  # confirms parse_node got correct mock
 
 
 @pytest.mark.asyncio
@@ -144,3 +144,5 @@ async def test_graph_exhausts_after_max_rounds():
     assert "最大轮次" in result["failure_reason"]
     # 降级输出：best_output 非空（有历史最优版本）
     assert result["final_output"] is not None
+    assert result["task_spec"].task_type == "content_writing"  # confirms parse_node got correct mock
+    assert result["current_round"] == result["max_rounds"] - 1  # ran all max_rounds
