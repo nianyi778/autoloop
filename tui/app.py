@@ -7,11 +7,14 @@ from textual.app import App, ComposeResult
 from textual.containers import VerticalScroll, Vertical
 from textual.widgets import Header, Footer, Input, Static, Button
 
+from core.auth import has_any_provider, load_into_env
 from core.orchestrator.graph import graph
 from core.orchestrator.state import ForgeState
 from core.parser.task_spec import TaskSpec
 from modules.base import StreamEvent
 from modules.builtin import content_writer  # trigger @register
+from modules.registry import discover_and_load
+from tui.login import LoginScreen
 from tui.widgets import RoundPanel, EvalPanel
 
 
@@ -23,6 +26,16 @@ class OpenForgeApp(App):
     RoundPanel { border: solid $accent; margin: 1; padding: 1; height: auto; }
     EvalPanel { border: solid $success; margin: 1; padding: 1; height: auto; }
     """
+
+    def on_mount(self) -> None:
+        load_into_env()
+        discover_and_load()
+        if not has_any_provider():
+            self.push_screen(LoginScreen(), self._on_login_done)
+
+    def _on_login_done(self, saved: bool) -> None:
+        if saved:
+            load_into_env()
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
@@ -110,9 +123,7 @@ class OpenForgeApp(App):
 
 
 def main() -> None:
-    if not os.getenv("ANTHROPIC_API_KEY"):
-        print("Error: ANTHROPIC_API_KEY not set", file=sys.stderr)
-        sys.exit(1)
+    load_into_env()
     app = OpenForgeApp()
     app.run()
 
