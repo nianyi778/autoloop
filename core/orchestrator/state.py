@@ -51,7 +51,7 @@ class LoopEvent:
         )
 
 
-class AutoLoopState(TypedDict):
+class ForgeState(TypedDict):
     # Event log — the single source of truth (append-only via _append reducer)
     events: Annotated[list[LoopEvent], _append]
 

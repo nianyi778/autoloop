@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from langgraph.graph import StateGraph, START, END
 
-from core.orchestrator.state import AutoLoopState
+from core.orchestrator.state import ForgeState
 from core.orchestrator.nodes import (
     parse_node,
     route_node,
@@ -16,7 +16,7 @@ from core.orchestrator.nodes import (
 
 
 def build_graph():
-    builder = StateGraph(AutoLoopState)
+    builder = StateGraph(ForgeState)
 
     builder.add_node("parse", parse_node)
     builder.add_node("route", route_node)

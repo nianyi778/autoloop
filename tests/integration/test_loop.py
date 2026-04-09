@@ -8,10 +8,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from core.orchestrator.graph import build_graph
 from core.parser.task_spec import TaskSpec
-from core.orchestrator.state import AutoLoopState
+from core.orchestrator.state import ForgeState
 
 
-def make_initial_state(raw_input: str = "写一篇测试文章") -> AutoLoopState:
+def make_initial_state(raw_input: str = "写一篇测试文章") -> ForgeState:
     return {
         "events": [],
         "task_spec": TaskSpec(

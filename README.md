@@ -1,4 +1,4 @@
-# AutoLoop
+# OpenForge
 
 An autonomous content generation engine that takes a requirement as input and iteratively generates, evaluates, and refines output until it meets quality standards — or exhausts its retry budget and returns the best result so far.
 
@@ -22,6 +22,7 @@ The evaluator only sees the original requirements and the output — no round hi
 ## Features
 
 - **Pluggable modules** — Register a module with `@register` and a regex pattern; the router picks it automatically
+- **Multi-provider LLM routing** — Different models for generation, evaluation, and parsing via `config.toml`
 - **Strategy diversification** — Each retry tracks `previous_strategies` so the module never repeats the same fix
 - **Event sourcing** — Every state transition is recorded as an append-only `LoopEvent` (UUID + UTC timestamp)
 - **Degraded output** — Never returns empty. On exhaustion, returns the highest-scoring output from any round
@@ -31,8 +32,8 @@ The evaluator only sees the original requirements and the output — no round hi
 
 ```bash
 # Install
-git clone https://github.com/nianyi778/autoloop
-cd autoloop
+git clone https://github.com/nianyi778/openforge
+cd openforge
 uv sync
 
 # Configure
@@ -40,7 +41,7 @@ cp .env.example .env
 # Edit .env and set ANTHROPIC_API_KEY
 
 # Run
-uv run autoloop
+uv run openforge
 ```
 
 Requires Python 3.12+, [`uv`](https://docs.astral.sh/uv/), and an [Anthropic API key](https://console.anthropic.com/).
@@ -55,18 +56,25 @@ max_rounds = 5          # maximum retry attempts
 pass_threshold = 0.8    # LLM Judge score to accept output
 
 [llm]
-model = "claude-sonnet-4-6"
+default_model = "anthropic/claude-sonnet-4-6"
 temperature = 0.7
 
-[evaluator]
-checklist_parallel = true
+[llm.roles]
+evaluator = "anthropic/claude-opus-4-6"           # strongest model for judging
+parser    = "anthropic/claude-haiku-4-5-20251001"  # lightweight for parsing
+
+[llm.modules]
+content_writer = "anthropic/claude-haiku-4-5-20251001"
+# content_writer = "deepseek/deepseek-chat"        # swap providers freely
+# content_writer = "ollama/qwen2.5"                # or run locally
 ```
 
 ## Project Structure
 
 ```
-autoloop/
+openforge/
 ├── core/
+│   ├── llm.py          # LiteLLM-backed client, config-driven model routing
 │   ├── parser/         # TaskSpec — structured requirement extraction
 │   ├── evaluator/      # Checklist + LLM Judge (context-isolated)
 │   └── orchestrator/   # LangGraph StateGraph, nodes, event log
@@ -99,10 +107,23 @@ class MyModule(BaseModule):
 
 The router picks `MyModule` when `task_type` matches `match_pattern`. Diagnosis from the previous round is available at `context.diagnosis`.
 
+## Multi-Provider LLM
+
+OpenForge uses [LiteLLM](https://github.com/BerriAI/litellm) under the hood, supporting 100+ models from any provider:
+
+```bash
+# .env
+ANTHROPIC_API_KEY=sk-ant-...
+OPENAI_API_KEY=sk-...
+DEEPSEEK_API_KEY=sk-...
+```
+
+Switch providers in `config.toml` with no code changes.
+
 ## Tech Stack
 
 - [LangGraph](https://github.com/langchain-ai/langgraph) — stateful agent loop with conditional edges
-- [Anthropic](https://docs.anthropic.com/) — Claude for generation and evaluation
+- [LiteLLM](https://github.com/BerriAI/litellm) — unified interface for 100+ LLM providers
 - [Textual](https://textual.textualize.io/) — async terminal UI
 - [uv](https://docs.astral.sh/uv/) — dependency management
 

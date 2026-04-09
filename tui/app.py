@@ -8,14 +8,14 @@ from textual.containers import VerticalScroll, Vertical
 from textual.widgets import Header, Footer, Input, Static, Button
 
 from core.orchestrator.graph import graph
-from core.orchestrator.state import AutoLoopState
+from core.orchestrator.state import ForgeState
 from core.parser.task_spec import TaskSpec
 from modules.base import StreamEvent
 from modules.builtin import content_writer  # trigger @register
 from tui.widgets import RoundPanel, EvalPanel
 
 
-class AutoLoopApp(App):
+class OpenForgeApp(App):
     CSS = """
     Screen { layout: vertical; }
     #input-area { height: 5; }
@@ -26,7 +26,7 @@ class AutoLoopApp(App):
 
     def compose(self) -> ComposeResult:
         yield Header(show_clock=True)
-        yield Static("AutoLoop — 自主内容生成引擎", id="title")
+        yield Static("OpenForge — 自主内容锻造引擎", id="title")
         with Vertical(id="input-area"):
             yield Input(placeholder="输入你的需求...", id="task-input")
             yield Button("开始", id="start-btn", variant="primary")
@@ -52,7 +52,7 @@ class AutoLoopApp(App):
         await output_area.remove_children()
         status.update(f"[bold]任务：[/bold]{raw_input}")
 
-        initial_state: AutoLoopState = {
+        initial_state: ForgeState = {
             "events": [],
             "task_spec": TaskSpec(
                 task_type="content_writing",
@@ -113,7 +113,7 @@ def main() -> None:
     if not os.getenv("ANTHROPIC_API_KEY"):
         print("Error: ANTHROPIC_API_KEY not set", file=sys.stderr)
         sys.exit(1)
-    app = AutoLoopApp()
+    app = OpenForgeApp()
     app.run()
 
 

@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from modules.base import BaseModule
 
-ENTRY_POINT_GROUP = "autoloop.modules"
+ENTRY_POINT_GROUP = "openforge.modules"
 
 _registry: dict[str, type[BaseModule]] = {}
 _registry_version: int = 0

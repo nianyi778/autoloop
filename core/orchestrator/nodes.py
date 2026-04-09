@@ -8,7 +8,7 @@ from core.evaluator.checklist import ChecklistEvaluator
 from core.evaluator.llm_judge import EvaluatorInput, LLMJudge
 from core.evaluator.diagnosis import Diagnosis
 from core.llm import get_llm, LLMClient
-from core.orchestrator.state import AutoLoopState, LoopEvent
+from core.orchestrator.state import ForgeState, LoopEvent
 from core.parser.task_spec import TaskSpec
 from modules.registry import get_registry
 from modules.router import MatchRouter
@@ -33,7 +33,7 @@ _llm_judge = LLMJudge(
 )
 
 
-async def parse_node(state: AutoLoopState) -> dict:
+async def parse_node(state: ForgeState) -> dict:
     """Parse raw input into structured TaskSpec via LLM."""
     raw = state["task_spec"].raw_input
     text = await _parser_llm.complete(messages=[{"role": "user", "content": f"""将以下需求解析为结构化任务单，严格 JSON 格式：
@@ -87,13 +87,13 @@ task_type 只能是：content_writing / code_generation / analysis"""}], max_tok
     }
 
 
-async def route_node(state: AutoLoopState) -> dict:
+async def route_node(state: ForgeState) -> dict:
     """Route task_spec to the appropriate module via MatchRouter."""
     cls = await _router.route(state["task_spec"])
     return {"selected_module": cls.name}
 
 
-async def execute_node(state: AutoLoopState) -> dict:
+async def execute_node(state: ForgeState) -> dict:
     """Instantiate selected module and call execute(). Handle errors gracefully."""
     registry = get_registry()
     cls = registry[state["selected_module"]]
@@ -146,7 +146,7 @@ async def execute_node(state: AutoLoopState) -> dict:
     }
 
 
-async def evaluate_node(state: AutoLoopState) -> dict:
+async def evaluate_node(state: ForgeState) -> dict:
     """Two-stage evaluation: Checklist then LLM Judge. Evaluator sees only requirements + output."""
     if state["current_output"] is None:
         # Execution failed — pass through the diagnosis already set by execute_node
@@ -209,7 +209,7 @@ async def evaluate_node(state: AutoLoopState) -> dict:
     return updates
 
 
-async def finalize_node(state: AutoLoopState) -> dict:
+async def finalize_node(state: ForgeState) -> dict:
     """Task completed successfully — write final_output."""
     event = LoopEvent.create("output_finalized", {
         "score": state["current_score"],
@@ -221,7 +221,7 @@ async def finalize_node(state: AutoLoopState) -> dict:
     }
 
 
-async def exhaust_node(state: AutoLoopState) -> dict:
+async def exhaust_node(state: ForgeState) -> dict:
     """Max rounds exhausted — degrade to best_output (never return empty-handed)."""
     event = LoopEvent.create("task_exhausted", {
         "rounds_used": state["current_round"],
@@ -237,7 +237,7 @@ async def exhaust_node(state: AutoLoopState) -> dict:
     }
 
 
-async def increment_round_node(state: AutoLoopState) -> dict:
+async def increment_round_node(state: ForgeState) -> dict:
     """Increment round counter and record the strategy used in this round."""
     used = list(state["previous_strategies"])
     if state["current_diagnosis"]:
@@ -248,7 +248,7 @@ async def increment_round_node(state: AutoLoopState) -> dict:
     }
 
 
-def should_retry(state: AutoLoopState) -> str:
+def should_retry(state: ForgeState) -> str:
     """
     Conditional edge function — pure function, no state mutation.
     Returns: "finalize" | "exhaust" | "retry"
