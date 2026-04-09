@@ -1,18 +1,8 @@
 from __future__ import annotations
 
-import tomllib
-from pathlib import Path
-
-import anthropic
-
+from core.llm import get_llm
 from modules.base import BaseModule, ModuleResult, RoundContext
 from modules.registry import register
-
-
-def _load_config() -> dict:
-    config_path = Path(__file__).parent.parent.parent / "config.toml"
-    with open(config_path, "rb") as f:
-        return tomllib.load(f)
 
 
 @register
@@ -23,8 +13,7 @@ class ContentWriterModule(BaseModule):
     evaluation_rubric = None  # Uses generic LLM Judge scoring
 
     def __init__(self) -> None:
-        self._config = _load_config()
-        self._client = anthropic.AsyncAnthropic()
+        self._llm = get_llm(module="content_writer")
 
     async def execute(self, context: RoundContext) -> ModuleResult:
         self._emit("progress", "开始生成内容...", context.round_number)
@@ -32,14 +21,9 @@ class ContentWriterModule(BaseModule):
         prompt = self._build_prompt(context)
         output_parts: list[str] = []
 
-        async with self._client.messages.stream(
-            model=self._config["llm"]["model"],
-            max_tokens=2048,
-            messages=[{"role": "user", "content": prompt}],
-        ) as stream:
-            async for text in stream.text_stream:
-                output_parts.append(text)
-                self._emit("token", text, context.round_number)
+        async for text in self._llm.stream(messages=[{"role": "user", "content": prompt}], max_tokens=2048):
+            output_parts.append(text)
+            self._emit("token", text, context.round_number)
 
         output = "".join(output_parts)
         self._emit("done", output, context.round_number)

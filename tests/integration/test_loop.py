@@ -1,5 +1,5 @@
 """
-集成测试：mock Anthropic API，验证图的流转逻辑正确。
+集成测试：mock litellm.acompletion，验证图的流转逻辑正确。
 不测试 LLM 输出质量，只测试状态流转。
 """
 from __future__ import annotations
@@ -35,45 +35,19 @@ def make_initial_state(raw_input: str = "写一篇测试文章") -> AutoLoopStat
     }
 
 
-async def _async_gen(items):
-    for item in items:
-        yield item
+def make_completion_response(text: str) -> MagicMock:
+    resp = MagicMock()
+    resp.choices = [MagicMock()]
+    resp.choices[0].message.content = text
+    return resp
 
 
-def _make_mock_client(parse_response_text: str, judge_response_text: str):
-    """
-    Build a mock AsyncAnthropic client that handles both parse and judge calls.
-
-    Since nodes.py uses _client for parse + judge, and content_writer creates
-    its own client via anthropic.AsyncAnthropic(), we patch both the module-level
-    singleton and the class constructor.
-    """
-    mock_parse_msg = MagicMock()
-    mock_parse_msg.content = [MagicMock(text=parse_response_text)]
-
-    mock_judge_msg = MagicMock()
-    mock_judge_msg.content = [MagicMock(text=judge_response_text)]
-
-    async def mock_create(**kwargs):
-        # First call is parse_node (解析为结构化任务单), subsequent calls are LLM Judge
-        messages = kwargs.get("messages", [])
-        content = messages[0].get("content", "") if messages else ""
-        if "解析为结构化任务单" in content:
-            return mock_parse_msg
-        return mock_judge_msg
-
-    def make_stream_ctx():
-        ctx = AsyncMock()
-        ctx.__aenter__ = AsyncMock(return_value=ctx)
-        ctx.__aexit__ = AsyncMock(return_value=None)
-        ctx.text_stream = _async_gen(["这是", "测试", "内容"])
-        return ctx
-
-    mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(side_effect=mock_create)
-    mock_client.messages.stream = MagicMock(side_effect=lambda **kw: make_stream_ctx())
-
-    return mock_client
+async def make_stream_response(tokens: list[str]):
+    for token in tokens:
+        chunk = MagicMock()
+        chunk.choices = [MagicMock()]
+        chunk.choices[0].delta.content = token
+        yield chunk
 
 
 @pytest.mark.asyncio
@@ -84,13 +58,18 @@ async def test_graph_reaches_final_output_on_high_score():
     parse_text = '{"task_type": "content_writing", "requirements": ["写测试文章"], "constraints": [], "style": null}'
     judge_text = '{"scores": {"correctness": 0.9}, "overall": 0.9, "diagnosis_category": "quality_insufficient", "diagnosis_details": "良好", "suggested_strategy": "保持"}'
 
-    mock_client = _make_mock_client(parse_text, judge_text)
+    async def mock_acompletion(**kwargs):
+        stream = kwargs.get("stream", False)
+        messages = kwargs.get("messages", [{}])
+        content = messages[0].get("content", "")
 
-    with (
-        patch("core.orchestrator.nodes._client", mock_client),
-        patch("core.orchestrator.nodes._llm_judge._client", mock_client),
-        patch("anthropic.AsyncAnthropic", return_value=mock_client),
-    ):
+        if stream:
+            return make_stream_response(["这是", "测试", "内容"])
+        if "解析为结构化任务单" in content:
+            return make_completion_response(parse_text)
+        return make_completion_response(judge_text)
+
+    with patch("litellm.acompletion", side_effect=mock_acompletion):
         graph = build_graph()
         result = await graph.ainvoke(make_initial_state())
 
@@ -107,36 +86,18 @@ async def test_graph_exhausts_after_max_rounds():
     parse_text = '{"task_type": "content_writing", "requirements": ["写测试"], "constraints": [], "style": null}'
     judge_text = '{"scores": {}, "overall": 0.3, "diagnosis_category": "quality_insufficient", "diagnosis_details": "质量不足", "suggested_strategy": "改进"}'
 
-    # Each round generates new stream context, so we need a factory
-    def make_stream_ctx():
-        ctx = AsyncMock()
-        ctx.__aenter__ = AsyncMock(return_value=ctx)
-        ctx.__aexit__ = AsyncMock(return_value=None)
-        ctx.text_stream = _async_gen(["低质量内容"])
-        return ctx
+    async def mock_acompletion(**kwargs):
+        stream = kwargs.get("stream", False)
+        messages = kwargs.get("messages", [{}])
+        content = messages[0].get("content", "")
 
-    mock_parse_msg = MagicMock()
-    mock_parse_msg.content = [MagicMock(text=parse_text)]
-
-    mock_judge_msg = MagicMock()
-    mock_judge_msg.content = [MagicMock(text=judge_text)]
-
-    async def mock_create(**kwargs):
-        messages = kwargs.get("messages", [])
-        content = messages[0].get("content", "") if messages else ""
+        if stream:
+            return make_stream_response(["低质量内容"])
         if "解析为结构化任务单" in content:
-            return mock_parse_msg
-        return mock_judge_msg
+            return make_completion_response(parse_text)
+        return make_completion_response(judge_text)
 
-    mock_client = AsyncMock()
-    mock_client.messages.create = AsyncMock(side_effect=mock_create)
-    mock_client.messages.stream = MagicMock(side_effect=lambda **kw: make_stream_ctx())
-
-    with (
-        patch("core.orchestrator.nodes._client", mock_client),
-        patch("core.orchestrator.nodes._llm_judge._client", mock_client),
-        patch("anthropic.AsyncAnthropic", return_value=mock_client),
-    ):
+    with patch("litellm.acompletion", side_effect=mock_acompletion):
         graph = build_graph()
         result = await graph.ainvoke(make_initial_state())
 

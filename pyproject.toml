@@ -6,6 +6,7 @@ dependencies = [
     "langgraph>=0.2",
     "anthropic>=0.40",
     "textual>=0.60",
+    "litellm>=1.40",
 ]
 
 [project.entry-points."autoloop.modules"]

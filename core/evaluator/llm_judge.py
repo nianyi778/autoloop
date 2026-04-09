@@ -32,12 +32,8 @@ class LLMJudge:
             else ["correctness", "completeness", "style", "relevance"]
         )
         prompt = self._build_prompt(input_, dimensions)
-        response = await self._client.messages.create(
-            model=self._model,
-            max_tokens=512,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return self._parse_response(response.content[0].text)
+        text = await self._client.complete(messages=[{"role": "user", "content": prompt}], max_tokens=512)
+        return self._parse_response(text)
 
     def _build_prompt(self, input_: EvaluatorInput, dimensions: list[str]) -> str:
         dims_str = "\n".join(f"- {d}: 0.0~1.0" for d in dimensions)

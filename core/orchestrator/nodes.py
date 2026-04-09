@@ -4,11 +4,10 @@ import json
 import tomllib
 from pathlib import Path
 
-import anthropic
-
 from core.evaluator.checklist import ChecklistEvaluator
 from core.evaluator.llm_judge import EvaluatorInput, LLMJudge
 from core.evaluator.diagnosis import Diagnosis
+from core.llm import get_llm, LLMClient
 from core.orchestrator.state import AutoLoopState, LoopEvent
 from core.parser.task_spec import TaskSpec
 from modules.registry import get_registry
@@ -22,17 +21,14 @@ def _load_config() -> dict:
         return tomllib.load(f)
 
 
-def _make_client() -> anthropic.AsyncAnthropic:
-    return anthropic.AsyncAnthropic()
-
-
 _config = _load_config()
-_client = _make_client()
+_parser_llm = get_llm(role="parser")
+_judge_llm  = get_llm(role="evaluator")
 _router = MatchRouter()
 _checklist_evaluator = ChecklistEvaluator()
 _llm_judge = LLMJudge(
-    client=_client,
-    model=_config["llm"]["model"],
+    client=_judge_llm,
+    model=_judge_llm.model,
     pass_threshold=_config["loop"]["pass_threshold"],
 )
 
@@ -40,10 +36,7 @@ _llm_judge = LLMJudge(
 async def parse_node(state: AutoLoopState) -> dict:
     """Parse raw input into structured TaskSpec via LLM."""
     raw = state["task_spec"].raw_input
-    response = await _client.messages.create(
-        model=_config["llm"]["model"],
-        max_tokens=512,
-        messages=[{"role": "user", "content": f"""将以下需求解析为结构化任务单，严格 JSON 格式：
+    text = await _parser_llm.complete(messages=[{"role": "user", "content": f"""将以下需求解析为结构化任务单，严格 JSON 格式：
 
 需求：{raw}
 
@@ -55,10 +48,8 @@ async def parse_node(state: AutoLoopState) -> dict:
   "style": null
 }}
 
-task_type 只能是：content_writing / code_generation / analysis"""}],
-    )
+task_type 只能是：content_writing / code_generation / analysis"""}], max_tokens=512)
     try:
-        text = response.content[0].text
         start = text.index("{")
         end = text.rindex("}") + 1
         data = json.loads(text[start:end])
